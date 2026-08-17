@@ -1,0 +1,21 @@
+{
+  "name": "cms",
+  "version": "1.0.0",
+  "description": "My personal CMS",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest --runInBand"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://localhost:26831/GScandelari/cms"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
+  }
+}
