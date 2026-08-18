@@ -25,11 +25,12 @@ Copy `.env.example` to `.env` and fill in your Firebase credentials:
 cp .env.example .env
 ```
 
-| Variable                    | Description                                             |
-|-----------------------------|---------------------------------------------------------|
-| `PORT`                      | Port the server listens on (default: `3000`)            |
-| `FIREBASE_PROJECT_ID`       | Your Firebase project ID                                |
-| `FIREBASE_SERVICE_ACCOUNT`  | Service account JSON as a single-line string (optional) |
+| Variable                    | Description                                                    |
+|-----------------------------|------------------------------------------------------------------|
+| `PORT`                      | Port the server listens on (default: `3000`)                   |
+| `FIREBASE_PROJECT_ID`       | Your Firebase project ID                                        |
+| `FIREBASE_SERVICE_ACCOUNT`  | Service account JSON as a single-line string (optional)        |
+| `CMS_API_KEY`               | Required. Shared secret for write requests (see Authentication) |
 
 If `FIREBASE_SERVICE_ACCOUNT` is not set, the SDK uses Application Default Credentials.
 
@@ -37,6 +38,20 @@ If `FIREBASE_SERVICE_ACCOUNT` is not set, the SDK uses Application Default Crede
 
 ```bash
 npm start
+```
+
+## Authentication
+
+`GET` requests are public. `POST`, `PUT`, and `DELETE` on `/posts` require an `x-api-key`
+header matching the `CMS_API_KEY` environment variable. Requests without a valid key get
+`401 Unauthorized`; if the server has no `CMS_API_KEY` configured, writes are refused with
+`500` rather than silently allowed.
+
+```bash
+curl -X POST http://localhost:3000/posts \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $CMS_API_KEY" \
+  -d '{"title":"Hello","content":"World","slug":"hello","published":false}'
 ```
 
 ## REST API
@@ -65,11 +80,7 @@ Base URL: `http://localhost:3000`
 
 ### Example — Create a post
 
-```bash
-curl -X POST http://localhost:3000/posts \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Hello","content":"World","slug":"hello","published":false}'
-```
+See the Authentication section above — `POST`/`PUT`/`DELETE` require the `x-api-key` header.
 
 ## Tests
 
