@@ -1,5 +1,8 @@
 jest.mock('../src/services/postsService');
 
+const TEST_API_KEY = 'test-api-key';
+process.env.CMS_API_KEY = TEST_API_KEY;
+
 const request = require('supertest');
 const app = require('../src/app');
 const postsService = require('../src/services/postsService');
@@ -51,6 +54,7 @@ describe('POST /posts', () => {
     postsService.createPost.mockResolvedValue(samplePost);
     const res = await request(app)
       .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
       .send({ title: 'Hello World', content: 'My first post', slug: 'hello-world' });
     expect(res.status).toBe(201);
     expect(res.body).toEqual(samplePost);
@@ -59,6 +63,7 @@ describe('POST /posts', () => {
   it('returns 400 when title is missing', async () => {
     const res = await request(app)
       .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
       .send({ content: 'My first post', slug: 'hello-world' });
     expect(res.status).toBe(400);
   });
@@ -66,6 +71,7 @@ describe('POST /posts', () => {
   it('returns 400 when content is missing', async () => {
     const res = await request(app)
       .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
       .send({ title: 'Hello World', slug: 'hello-world' });
     expect(res.status).toBe(400);
   });
@@ -73,6 +79,7 @@ describe('POST /posts', () => {
   it('returns 400 when slug is missing', async () => {
     const res = await request(app)
       .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
       .send({ title: 'Hello World', content: 'My first post' });
     expect(res.status).toBe(400);
   });
@@ -80,7 +87,10 @@ describe('POST /posts', () => {
 
 describe('PUT /posts/:id', () => {
   it('returns 400 when body has no recognized fields', async () => {
-    const res = await request(app).put('/posts/abc123').send({});
+    const res = await request(app)
+      .put('/posts/abc123')
+      .set('x-api-key', TEST_API_KEY)
+      .send({});
     expect(res.status).toBe(400);
   });
 
@@ -89,6 +99,7 @@ describe('PUT /posts/:id', () => {
     postsService.updatePost.mockResolvedValue(updated);
     const res = await request(app)
       .put('/posts/abc123')
+      .set('x-api-key', TEST_API_KEY)
       .send({ title: 'Updated' });
     expect(res.status).toBe(200);
     expect(res.body.title).toBe('Updated');
@@ -96,7 +107,10 @@ describe('PUT /posts/:id', () => {
 
   it('returns 404 when post not found', async () => {
     postsService.updatePost.mockResolvedValue(null);
-    const res = await request(app).put('/posts/notexist').send({ title: 'X' });
+    const res = await request(app)
+      .put('/posts/notexist')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'X' });
     expect(res.status).toBe(404);
   });
 });
@@ -104,14 +118,64 @@ describe('PUT /posts/:id', () => {
 describe('DELETE /posts/:id', () => {
   it('deletes a post and returns 204', async () => {
     postsService.deletePost.mockResolvedValue(true);
-    const res = await request(app).delete('/posts/abc123');
+    const res = await request(app)
+      .delete('/posts/abc123')
+      .set('x-api-key', TEST_API_KEY);
     expect(res.status).toBe(204);
   });
 
   it('returns 404 when post not found', async () => {
     postsService.deletePost.mockResolvedValue(false);
-    const res = await request(app).delete('/posts/notexist');
+    const res = await request(app)
+      .delete('/posts/notexist')
+      .set('x-api-key', TEST_API_KEY);
     expect(res.status).toBe(404);
+  });
+});
+
+describe('API key authentication on write endpoints', () => {
+  it('rejects POST without an x-api-key header', async () => {
+    const res = await request(app)
+      .post('/posts')
+      .send({ title: 'Hello', content: 'World', slug: 'hello' });
+    expect(res.status).toBe(401);
+    expect(postsService.createPost).not.toHaveBeenCalled();
+  });
+
+  it('rejects POST with the wrong x-api-key', async () => {
+    const res = await request(app)
+      .post('/posts')
+      .set('x-api-key', 'wrong-key')
+      .send({ title: 'Hello', content: 'World', slug: 'hello' });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects PUT without an x-api-key header', async () => {
+    const res = await request(app).put('/posts/abc123').send({ title: 'X' });
+    expect(res.status).toBe(401);
+    expect(postsService.updatePost).not.toHaveBeenCalled();
+  });
+
+  it('rejects DELETE without an x-api-key header', async () => {
+    const res = await request(app).delete('/posts/abc123');
+    expect(res.status).toBe(401);
+    expect(postsService.deletePost).not.toHaveBeenCalled();
+  });
+
+  it('does not require an x-api-key header for GET requests', async () => {
+    postsService.getAllPosts.mockResolvedValue([]);
+    const res = await request(app).get('/posts');
+    expect(res.status).toBe(200);
+  });
+
+  it('refuses writes with 500 when CMS_API_KEY is not configured server-side', async () => {
+    delete process.env.CMS_API_KEY;
+    const res = await request(app)
+      .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'Hello', content: 'World', slug: 'hello' });
+    expect(res.status).toBe(500);
+    process.env.CMS_API_KEY = TEST_API_KEY;
   });
 });
 
