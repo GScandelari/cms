@@ -11,6 +11,7 @@ router.get('/', async (req, res) => {
     const posts = await postsService.getAllPosts();
     res.json(posts);
   } catch (err) {
+    console.error('GET /posts failed:', err);
     res.status(500).json({ error: 'Failed to retrieve posts.' });
   }
 });
@@ -22,6 +23,7 @@ router.get('/:id', async (req, res) => {
     if (!post) return res.status(404).json({ error: 'Post not found.' });
     res.json(post);
   } catch (err) {
+    console.error('GET /posts/:id failed:', err);
     res.status(500).json({ error: 'Failed to retrieve post.' });
   }
 });
@@ -32,6 +34,7 @@ router.post('/', requireApiKey, validatePost, async (req, res) => {
     const post = await postsService.createPost(req.body);
     res.status(201).json(post);
   } catch (err) {
+    console.error('POST /posts failed:', err);
     res.status(500).json({ error: 'Failed to create post.' });
   }
 });
@@ -43,6 +46,7 @@ router.put('/:id', requireApiKey, validatePostUpdate, async (req, res) => {
     if (!post) return res.status(404).json({ error: 'Post not found.' });
     res.json(post);
   } catch (err) {
+    console.error('PUT /posts/:id failed:', err);
     res.status(500).json({ error: 'Failed to update post.' });
   }
 });
@@ -54,6 +58,7 @@ router.delete('/:id', requireApiKey, async (req, res) => {
     if (!deleted) return res.status(404).json({ error: 'Post not found.' });
     res.status(204).send();
   } catch (err) {
+    console.error('DELETE /posts/:id failed:', err);
     res.status(500).json({ error: 'Failed to delete post.' });
   }
 });
