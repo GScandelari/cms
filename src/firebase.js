@@ -1,10 +1,11 @@
-const admin = require('firebase-admin');
+const { getApps, initializeApp, cert, applicationDefault } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 
-  let db;
+let db;
 
 function getDb() {
   if (!db) {
-    if (!admin.apps.length) {
+    if (!getApps().length) {
       let credential;
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
         let serviceAccount;
@@ -13,17 +14,17 @@ function getDb() {
         } catch (e) {
           throw new Error('FIREBASE_SERVICE_ACCOUNT contains invalid JSON: ' + e.message);
         }
-        credential = admin.credential.cert(serviceAccount);
+        credential = cert(serviceAccount);
       } else {
-        credential = admin.credential.applicationDefault();
+        credential = applicationDefault();
       }
 
-      admin.initializeApp({
+      initializeApp({
         credential,
         projectId: process.env.FIREBASE_PROJECT_ID,
       });
     }
-    db = admin.firestore();
+    db = getFirestore();
   }
   return db;
 }

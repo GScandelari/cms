@@ -6,8 +6,16 @@ A REST API for managing posts on a personal website, backed by Firebase Firestor
 
 - **Node.js** + **Express** — HTTP server & routing
 - **Firebase Admin SDK** — Firestore database
+- **Firebase Cloud Functions (2nd gen)** — production hosting
 - **dotenv** — environment configuration
 - **Jest** + **Supertest** — testing
+
+## Entry points
+
+- `server.js` — local dev server (`npm start`), listens on `PORT`, reads config from `.env`.
+- `index.js` — Cloud Functions entry point (`exports.api`), used only by `firebase deploy`.
+
+Both wrap the same Express app in `src/app.js`.
 
 ## Getting Started
 
@@ -87,3 +95,25 @@ See the Authentication section above — `POST`/`PUT`/`DELETE` require the `x-ap
 ```bash
 npm test
 ```
+
+## Deployment
+
+Deployed as a Cloud Function (2nd gen) to the `gscandelari-cms` Firebase project,
+region `southamerica-east1`. Firestore lives in the same project, so the deployed
+function uses Application Default Credentials automatically — no
+`FIREBASE_SERVICE_ACCOUNT` needed in production.
+
+```bash
+firebase deploy --only functions --project gscandelari-cms
+```
+
+`CMS_API_KEY` is stored in Secret Manager, not a `.env` file:
+
+```bash
+printf "your-key-here" | firebase functions:secrets:set CMS_API_KEY --project gscandelari-cms --data-file -
+```
+
+(Use `printf`, not `echo` — `echo` appends a trailing newline that becomes part of the
+secret value and won't match the header a client sends.)
+
+Live URL: `https://southamerica-east1-gscandelari-cms.cloudfunctions.net/api`

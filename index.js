@@ -1,8 +1,4 @@
-require('dotenv').config();
+const { onRequest } = require('firebase-functions/v2/https');
 const app = require('./src/app');
 
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`CMS API running on port ${PORT}`);
-});
+exports.api = onRequest({ region: 'southamerica-east1', secrets: ['CMS_API_KEY'] }, app);
