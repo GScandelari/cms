@@ -1,6 +1,11 @@
 jest.mock('../src/services/postsService');
 jest.mock('../src/services/githubDispatch');
 
+const mockVerifyIdToken = jest.fn();
+jest.mock('firebase-admin/auth', () => ({
+  getAuth: () => ({ verifyIdToken: mockVerifyIdToken }),
+}));
+
 const TEST_API_KEY = 'test-api-key';
 process.env.CMS_API_KEY = TEST_API_KEY;
 
@@ -170,14 +175,80 @@ describe('API key authentication on write endpoints', () => {
     expect(res.status).toBe(200);
   });
 
-  it('refuses writes with 500 when CMS_API_KEY is not configured server-side', async () => {
+  it('rejects writes with 401 when CMS_API_KEY is not configured server-side and no other credential is given', async () => {
     delete process.env.CMS_API_KEY;
     const res = await request(app)
       .post('/posts')
       .set('x-api-key', TEST_API_KEY)
       .send({ title: 'Hello', content: 'World', slug: 'hello' });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(401);
     process.env.CMS_API_KEY = TEST_API_KEY;
+  });
+});
+
+describe('Firebase Auth bearer token authentication on write endpoints', () => {
+  const ORIGINAL_ADMIN_EMAILS = process.env.ADMIN_EMAILS;
+
+  beforeEach(() => {
+    process.env.ADMIN_EMAILS = 'owner@example.com';
+  });
+
+  afterEach(() => {
+    process.env.ADMIN_EMAILS = ORIGINAL_ADMIN_EMAILS;
+  });
+
+  it('accepts a valid token for an allow-listed, verified email', async () => {
+    mockVerifyIdToken.mockResolvedValue({ email: 'owner@example.com', email_verified: true });
+    postsService.createPost.mockResolvedValue(samplePost);
+
+    const res = await request(app)
+      .post('/posts')
+      .set('Authorization', 'Bearer valid-token')
+      .send({ title: 'Hello World', content: 'My first post', slug: 'hello-world' });
+
+    expect(res.status).toBe(201);
+  });
+
+  it('rejects a token for an email not on the allow list', async () => {
+    mockVerifyIdToken.mockResolvedValue({ email: 'someone-else@example.com', email_verified: true });
+
+    const res = await request(app)
+      .post('/posts')
+      .set('Authorization', 'Bearer valid-token')
+      .send({ title: 'Hello', content: 'World', slug: 'hello' });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a token with an unverified email', async () => {
+    mockVerifyIdToken.mockResolvedValue({ email: 'owner@example.com', email_verified: false });
+
+    const res = await request(app)
+      .post('/posts')
+      .set('Authorization', 'Bearer valid-token')
+      .send({ title: 'Hello', content: 'World', slug: 'hello' });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects an invalid/expired token', async () => {
+    mockVerifyIdToken.mockRejectedValue(new Error('invalid token'));
+
+    const res = await request(app)
+      .post('/posts')
+      .set('Authorization', 'Bearer garbage')
+      .send({ title: 'Hello', content: 'World', slug: 'hello' });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a malformed Authorization header', async () => {
+    const res = await request(app)
+      .post('/posts')
+      .set('Authorization', 'NotBearer something')
+      .send({ title: 'Hello', content: 'World', slug: 'hello' });
+
+    expect(res.status).toBe(401);
   });
 });
 
@@ -256,6 +327,33 @@ describe('Optional post fields validation', () => {
       });
     expect(res.status).toBe(201);
     expect(res.body.tags).toEqual(['blog', 'ideias']);
+  });
+
+  it('rejects a non-date publishAt value', async () => {
+    const res = await request(app)
+      .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'Hello', content: 'World', slug: 'hello', publishAt: 'not-a-date' });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a valid ISO publishAt', async () => {
+    postsService.createPost.mockResolvedValue({ ...samplePost, publishAt: '2026-12-25T00:00:00.000Z' });
+    const res = await request(app)
+      .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'Hello', content: 'World', slug: 'hello', publishAt: '2026-12-25T00:00:00.000Z' });
+    expect(res.status).toBe(201);
+    expect(res.body.publishAt).toBe('2026-12-25T00:00:00.000Z');
+  });
+
+  it('accepts null publishAt to clear scheduling on update', async () => {
+    postsService.updatePost.mockResolvedValue({ ...samplePost, publishAt: null });
+    const res = await request(app)
+      .put('/posts/abc123')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ publishAt: null });
+    expect(res.status).toBe(200);
   });
 });
 

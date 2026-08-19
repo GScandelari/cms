@@ -38,8 +38,10 @@ cp .env.example .env
 | `PORT`                      | Port the server listens on (default: `3000`)                   |
 | `FIREBASE_PROJECT_ID`       | Your Firebase project ID                                        |
 | `FIREBASE_SERVICE_ACCOUNT`  | Service account JSON as a single-line string (optional)        |
-| `CMS_API_KEY`               | Required. Shared secret for write requests (see Authentication) |
+| `CMS_API_KEY`               | Shared secret for write requests via `x-api-key` (see Authentication) |
+| `ADMIN_EMAILS`              | Comma-separated allow list of emails permitted to write via a Firebase Auth bearer token (see Authentication). Not required if you only ever use `CMS_API_KEY`. |
 | `GITHUB_DISPATCH_TOKEN`     | Optional. Fine-grained GitHub PAT (Contents: read/write on `GScandelari/website-gscandelari`) used to trigger a site rebuild when a post is published (see Rebuild trigger). If unset, publishing just skips the trigger — it's not required for the CMS itself to work. |
+| `ADMIN_PORTAL_ORIGINS`      | Comma-separated list of origins (e.g. `https://gscandelari-cms-admin.web.app`) allowed to call this API from a browser (CORS). Doesn't affect curl/server-to-server calls — CORS only applies to browsers. |
 
 If `FIREBASE_SERVICE_ACCOUNT` is not set, the SDK uses Application Default Credentials.
 
@@ -51,10 +53,13 @@ npm start
 
 ## Authentication
 
-`GET` requests are public. `POST`, `PUT`, and `DELETE` on `/posts` require an `x-api-key`
-header matching the `CMS_API_KEY` environment variable. Requests without a valid key get
-`401 Unauthorized`; if the server has no `CMS_API_KEY` configured, writes are refused with
-`500` rather than silently allowed.
+`GET` requests are public. `POST`, `PUT`, and `DELETE` on `/posts` accept either credential:
+
+- **`x-api-key` header** matching `CMS_API_KEY` — for scripts/curl.
+- **`Authorization: Bearer <Firebase ID token>`** — for the admin portal/app. The token's
+  email must be verified and present in `ADMIN_EMAILS`.
+
+Requests with neither a valid key nor a valid, allow-listed token get `401 Unauthorized`.
 
 ```bash
 curl -X POST http://localhost:3000/posts \
@@ -86,9 +91,17 @@ Base URL: `http://localhost:3000`
   "published":   "boolean (default: false)",
   "description": "string (default: '')",
   "tags":        "string[] (default: [])",
-  "lang":        "'pt' | 'en' (default: 'pt')"
+  "lang":        "'pt' | 'en' (default: 'pt')",
+  "publishAt":   "ISO 8601 date string, or null (default: null)"
 }
 ```
+
+## Scheduled publishing
+
+Setting `publishAt` on an unpublished post schedules it. A Cloud Function
+(`publishScheduledPosts`) runs every 5 minutes, publishes any post whose `publishAt` has
+passed and isn't published yet, and triggers a site rebuild if it published anything.
+Nothing else needs to call this — it's fully automatic once `publishAt` is set.
 
 ## Rebuild trigger
 
