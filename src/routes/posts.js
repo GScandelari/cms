@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { validatePost, validatePostUpdate } = require('../middlewares/validate');
 const { requireApiKey } = require('../middlewares/auth');
 const postsService = require('../services/postsService');
+const { triggerSiteRebuild } = require('../services/githubDispatch');
 
 const router = Router();
 
@@ -32,6 +33,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireApiKey, validatePost, async (req, res) => {
   try {
     const post = await postsService.createPost(req.body);
+    if (post.published) await triggerSiteRebuild();
     res.status(201).json(post);
   } catch (err) {
     console.error('POST /posts failed:', err);
@@ -44,6 +46,7 @@ router.put('/:id', requireApiKey, validatePostUpdate, async (req, res) => {
   try {
     const post = await postsService.updatePost(req.params.id, req.body);
     if (!post) return res.status(404).json({ error: 'Post not found.' });
+    if (post.published) await triggerSiteRebuild();
     res.json(post);
   } catch (err) {
     console.error('PUT /posts/:id failed:', err);
