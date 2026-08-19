@@ -27,7 +27,7 @@ async function createPost(data) {
     tags: data.tags !== undefined ? data.tags : [],
     lang: data.lang !== undefined ? data.lang : 'pt',
     publishAt: data.publishAt !== undefined ? data.publishAt : null,
-    createdAt: now,
+    createdAt: data.createdAt !== undefined ? data.createdAt : now,
     updatedAt: now,
   };
   const ref = await db.collection(COLLECTION).add(post);

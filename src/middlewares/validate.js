@@ -38,6 +38,13 @@ function validatePost(req, res, next) {
     return res.status(400).json({ error: optionalError });
   }
 
+  const { createdAt } = req.body;
+  if (createdAt !== undefined) {
+    if (typeof createdAt !== 'string' || Number.isNaN(new Date(createdAt).getTime())) {
+      return res.status(400).json({ error: 'Field "createdAt" must be an ISO 8601 date string.' });
+    }
+  }
+
   next();
 }
 

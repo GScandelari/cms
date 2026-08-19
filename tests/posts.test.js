@@ -355,6 +355,27 @@ describe('Optional post fields validation', () => {
       .send({ publishAt: null });
     expect(res.status).toBe(200);
   });
+
+  it('rejects a non-date createdAt value on create', async () => {
+    const res = await request(app)
+      .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'Hello', content: 'World', slug: 'hello', createdAt: 'not-a-date' });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a custom createdAt on create, for migrating existing content', async () => {
+    postsService.createPost.mockResolvedValue({ ...samplePost, createdAt: '2026-08-16T00:00:00.000Z' });
+    const res = await request(app)
+      .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'Hello', content: 'World', slug: 'hello', createdAt: '2026-08-16T00:00:00.000Z' });
+    expect(res.status).toBe(201);
+    expect(postsService.createPost).toHaveBeenCalledWith(
+      expect.objectContaining({ createdAt: '2026-08-16T00:00:00.000Z' })
+    );
+    expect(res.body.createdAt).toBe('2026-08-16T00:00:00.000Z');
+  });
 });
 
 describe('GET /health', () => {
