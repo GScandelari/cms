@@ -26,6 +26,7 @@ async function createPost(data) {
     description: data.description !== undefined ? data.description : '',
     tags: data.tags !== undefined ? data.tags : [],
     lang: data.lang !== undefined ? data.lang : 'pt',
+    publishAt: data.publishAt !== undefined ? data.publishAt : null,
     createdAt: now,
     updatedAt: now,
   };
@@ -47,6 +48,7 @@ async function updatePost(id, data) {
   if (data.description !== undefined) updates.description = data.description;
   if (data.tags !== undefined) updates.tags = data.tags;
   if (data.lang !== undefined) updates.lang = data.lang;
+  if (data.publishAt !== undefined) updates.publishAt = data.publishAt;
 
   await ref.update(updates);
   return { id, ...doc.data(), ...updates };
@@ -61,4 +63,28 @@ async function deletePost(id) {
   return true;
 }
 
-module.exports = { getAllPosts, getPostById, createPost, updatePost, deletePost };
+// Publishes every post whose scheduled publishAt has passed and isn't
+// published yet. Returns the list of posts that were just published.
+async function publishDuePosts(now = new Date()) {
+  const db = getDb();
+  const nowIso = now.toISOString();
+  const snapshot = await db
+    .collection(COLLECTION)
+    .where('published', '==', false)
+    .where('publishAt', '<=', nowIso)
+    .get();
+
+  if (snapshot.empty) return [];
+
+  const updatedAt = new Date().toISOString();
+  const batch = db.batch();
+  const published = [];
+  snapshot.docs.forEach((doc) => {
+    batch.update(doc.ref, { published: true, updatedAt });
+    published.push({ id: doc.id, ...doc.data(), published: true, updatedAt });
+  });
+  await batch.commit();
+  return published;
+}
+
+module.exports = { getAllPosts, getPostById, createPost, updatePost, deletePost, publishDuePosts };

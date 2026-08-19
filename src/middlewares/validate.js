@@ -1,5 +1,5 @@
 function validateOptionalFields(body) {
-  const { description, tags, lang } = body;
+  const { description, tags, lang, publishAt } = body;
 
   if (description !== undefined && typeof description !== 'string') {
     return 'Field "description" must be a string.';
@@ -11,6 +11,11 @@ function validateOptionalFields(body) {
   }
   if (lang !== undefined && lang !== 'pt' && lang !== 'en') {
     return 'Field "lang" must be "pt" or "en".';
+  }
+  if (publishAt !== undefined && publishAt !== null) {
+    if (typeof publishAt !== 'string' || Number.isNaN(new Date(publishAt).getTime())) {
+      return 'Field "publishAt" must be an ISO 8601 date string, or null to clear it.';
+    }
   }
   return null;
 }
@@ -36,7 +41,7 @@ function validatePost(req, res, next) {
   next();
 }
 
-const UPDATABLE_FIELDS = ['title', 'content', 'slug', 'published', 'description', 'tags', 'lang'];
+const UPDATABLE_FIELDS = ['title', 'content', 'slug', 'published', 'description', 'tags', 'lang', 'publishAt'];
 
 function validatePostUpdate(req, res, next) {
   const hasField = UPDATABLE_FIELDS.some((f) => req.body[f] !== undefined);

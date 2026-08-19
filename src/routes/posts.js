@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { validatePost, validatePostUpdate } = require('../middlewares/validate');
-const { requireApiKey } = require('../middlewares/auth');
+const { requireAuth } = require('../middlewares/auth');
 const postsService = require('../services/postsService');
 const { triggerSiteRebuild } = require('../services/githubDispatch');
 
@@ -30,7 +30,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /posts
-router.post('/', requireApiKey, validatePost, async (req, res) => {
+router.post('/', requireAuth, validatePost, async (req, res) => {
   try {
     const post = await postsService.createPost(req.body);
     if (post.published) await triggerSiteRebuild();
@@ -42,7 +42,7 @@ router.post('/', requireApiKey, validatePost, async (req, res) => {
 });
 
 // PUT /posts/:id
-router.put('/:id', requireApiKey, validatePostUpdate, async (req, res) => {
+router.put('/:id', requireAuth, validatePostUpdate, async (req, res) => {
   try {
     const post = await postsService.updatePost(req.params.id, req.body);
     if (!post) return res.status(404).json({ error: 'Post not found.' });
@@ -55,7 +55,7 @@ router.put('/:id', requireApiKey, validatePostUpdate, async (req, res) => {
 });
 
 // DELETE /posts/:id
-router.delete('/:id', requireApiKey, async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const deleted = await postsService.deletePost(req.params.id);
     if (!deleted) return res.status(404).json({ error: 'Post not found.' });
