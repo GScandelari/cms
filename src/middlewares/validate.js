@@ -1,3 +1,20 @@
+function validateOptionalFields(body) {
+  const { description, tags, lang } = body;
+
+  if (description !== undefined && typeof description !== 'string') {
+    return 'Field "description" must be a string.';
+  }
+  if (tags !== undefined) {
+    if (!Array.isArray(tags) || !tags.every((t) => typeof t === 'string')) {
+      return 'Field "tags" must be an array of strings.';
+    }
+  }
+  if (lang !== undefined && lang !== 'pt' && lang !== 'en') {
+    return 'Field "lang" must be "pt" or "en".';
+  }
+  return null;
+}
+
 function validatePost(req, res, next) {
   const { title, content, slug } = req.body;
 
@@ -11,10 +28,15 @@ function validatePost(req, res, next) {
     return res.status(400).json({ error: 'Field "slug" is required and must be a non-empty string.' });
   }
 
+  const optionalError = validateOptionalFields(req.body);
+  if (optionalError) {
+    return res.status(400).json({ error: optionalError });
+  }
+
   next();
 }
 
-const UPDATABLE_FIELDS = ['title', 'content', 'slug', 'published'];
+const UPDATABLE_FIELDS = ['title', 'content', 'slug', 'published', 'description', 'tags', 'lang'];
 
 function validatePostUpdate(req, res, next) {
   const hasField = UPDATABLE_FIELDS.some((f) => req.body[f] !== undefined);
@@ -23,6 +45,12 @@ function validatePostUpdate(req, res, next) {
       error: `Request body must contain at least one updatable field: ${UPDATABLE_FIELDS.join(', ')}.`,
     });
   }
+
+  const optionalError = validateOptionalFields(req.body);
+  if (optionalError) {
+    return res.status(400).json({ error: optionalError });
+  }
+
   next();
 }
 

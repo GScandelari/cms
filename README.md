@@ -39,6 +39,7 @@ cp .env.example .env
 | `FIREBASE_PROJECT_ID`       | Your Firebase project ID                                        |
 | `FIREBASE_SERVICE_ACCOUNT`  | Service account JSON as a single-line string (optional)        |
 | `CMS_API_KEY`               | Required. Shared secret for write requests (see Authentication) |
+| `GITHUB_DISPATCH_TOKEN`     | Optional. Fine-grained GitHub PAT (Contents: read/write on `GScandelari/website-gscandelari`) used to trigger a site rebuild when a post is published (see Rebuild trigger). If unset, publishing just skips the trigger — it's not required for the CMS itself to work. |
 
 If `FIREBASE_SERVICE_ACCOUNT` is not set, the SDK uses Application Default Credentials.
 
@@ -79,12 +80,24 @@ Base URL: `http://localhost:3000`
 
 ```json
 {
-  "title":     "string (required)",
-  "content":   "string (required)",
-  "slug":      "string (required)",
-  "published": "boolean (default: false)"
+  "title":       "string (required)",
+  "content":     "string (required) — Markdown",
+  "slug":        "string (required)",
+  "published":   "boolean (default: false)",
+  "description": "string (default: '')",
+  "tags":        "string[] (default: [])",
+  "lang":        "'pt' | 'en' (default: 'pt')"
 }
 ```
+
+## Rebuild trigger
+
+When a `POST`/`PUT` leaves a post with `published: true`, the CMS fires a
+[`repository_dispatch`](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#repository_dispatch)
+event (`cms-post-published`) against `GScandelari/website-gscandelari`, which the site's
+GitHub Actions workflow listens for to rebuild and redeploy. Best-effort: if
+`GITHUB_DISPATCH_TOKEN` is missing or the GitHub API call fails, the error is logged but the
+post request still succeeds — publishing a post never fails because of the rebuild trigger.
 
 ### Example — Create a post
 

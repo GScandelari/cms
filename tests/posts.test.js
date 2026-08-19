@@ -1,4 +1,5 @@
 jest.mock('../src/services/postsService');
+jest.mock('../src/services/githubDispatch');
 
 const TEST_API_KEY = 'test-api-key';
 process.env.CMS_API_KEY = TEST_API_KEY;
@@ -6,6 +7,7 @@ process.env.CMS_API_KEY = TEST_API_KEY;
 const request = require('supertest');
 const app = require('../src/app');
 const postsService = require('../src/services/postsService');
+const { triggerSiteRebuild } = require('../src/services/githubDispatch');
 
 const samplePost = {
   id: 'abc123',
@@ -176,6 +178,84 @@ describe('API key authentication on write endpoints', () => {
       .send({ title: 'Hello', content: 'World', slug: 'hello' });
     expect(res.status).toBe(500);
     process.env.CMS_API_KEY = TEST_API_KEY;
+  });
+});
+
+describe('Site rebuild trigger', () => {
+  it('triggers a rebuild when a post is created already published', async () => {
+    postsService.createPost.mockResolvedValue({ ...samplePost, published: true });
+    await request(app)
+      .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'Hello', content: 'World', slug: 'hello', published: true });
+    expect(triggerSiteRebuild).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not trigger a rebuild when a post is created as a draft', async () => {
+    postsService.createPost.mockResolvedValue({ ...samplePost, published: false });
+    await request(app)
+      .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'Hello', content: 'World', slug: 'hello' });
+    expect(triggerSiteRebuild).not.toHaveBeenCalled();
+  });
+
+  it('triggers a rebuild when a post is updated to published', async () => {
+    postsService.updatePost.mockResolvedValue({ ...samplePost, published: true });
+    await request(app)
+      .put('/posts/abc123')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ published: true });
+    expect(triggerSiteRebuild).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not trigger a rebuild when an update keeps the post unpublished', async () => {
+    postsService.updatePost.mockResolvedValue({ ...samplePost, published: false });
+    await request(app)
+      .put('/posts/abc123')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'Updated' });
+    expect(triggerSiteRebuild).not.toHaveBeenCalled();
+  });
+});
+
+describe('Optional post fields validation', () => {
+  it('rejects tags that is not an array of strings', async () => {
+    const res = await request(app)
+      .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'Hello', content: 'World', slug: 'hello', tags: 'not-an-array' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an invalid lang value', async () => {
+    const res = await request(app)
+      .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
+      .send({ title: 'Hello', content: 'World', slug: 'hello', lang: 'fr' });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts description, tags, and lang', async () => {
+    postsService.createPost.mockResolvedValue({
+      ...samplePost,
+      description: 'A description',
+      tags: ['blog', 'ideias'],
+      lang: 'pt',
+    });
+    const res = await request(app)
+      .post('/posts')
+      .set('x-api-key', TEST_API_KEY)
+      .send({
+        title: 'Hello',
+        content: 'World',
+        slug: 'hello',
+        description: 'A description',
+        tags: ['blog', 'ideias'],
+        lang: 'pt',
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.tags).toEqual(['blog', 'ideias']);
   });
 });
 
