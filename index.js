@@ -5,7 +5,10 @@ const { publishDuePosts } = require('./src/services/postsService');
 const { triggerSiteRebuild } = require('./src/services/githubDispatch');
 
 exports.api = onRequest(
-  { region: 'southamerica-east1', secrets: ['CMS_API_KEY', 'GITHUB_DISPATCH_TOKEN', 'ADMIN_EMAILS'] },
+  {
+    region: 'southamerica-east1',
+    secrets: ['CMS_API_KEY', 'GITHUB_DISPATCH_TOKEN', 'ADMIN_EMAILS', 'ADMIN_PORTAL_ORIGINS'],
+  },
   app
 );
 

@@ -26,4 +26,11 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use('/posts', postsRouter);
 
+app.use((err, req, res, next) => {
+  if (err && err.message === 'Not allowed by CORS') {
+    return res.status(403).json({ error: 'Forbidden: origin not allowed.' });
+  }
+  next(err);
+});
+
 module.exports = app;
