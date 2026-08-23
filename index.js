@@ -7,7 +7,7 @@ const { triggerSiteRebuild } = require('./src/services/githubDispatch');
 exports.api = onRequest(
   {
     region: 'southamerica-east1',
-    secrets: ['CMS_API_KEY', 'GITHUB_DISPATCH_TOKEN', 'ADMIN_EMAILS', 'ADMIN_PORTAL_ORIGINS'],
+    secrets: ['CMS_API_KEY', 'GITHUB_DISPATCH_TOKEN', 'GITHUB_DISPATCH_REPO', 'ADMIN_EMAILS', 'ADMIN_PORTAL_ORIGINS'],
   },
   app
 );
@@ -16,7 +16,7 @@ exports.publishScheduledPosts = onSchedule(
   {
     schedule: 'every 5 minutes',
     region: 'southamerica-east1',
-    secrets: ['GITHUB_DISPATCH_TOKEN'],
+    secrets: ['GITHUB_DISPATCH_TOKEN', 'GITHUB_DISPATCH_REPO'],
   },
   async () => {
     const published = await publishDuePosts();

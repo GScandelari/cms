@@ -1,10 +1,12 @@
 const { triggerSiteRebuild } = require('../src/services/githubDispatch');
 
 const ORIGINAL_TOKEN = process.env.GITHUB_DISPATCH_TOKEN;
+const ORIGINAL_REPO = process.env.GITHUB_DISPATCH_REPO;
 
 afterEach(() => {
   jest.restoreAllMocks();
   process.env.GITHUB_DISPATCH_TOKEN = ORIGINAL_TOKEN;
+  process.env.GITHUB_DISPATCH_REPO = ORIGINAL_REPO;
 });
 
 describe('triggerSiteRebuild', () => {
@@ -16,8 +18,9 @@ describe('triggerSiteRebuild', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('posts a repository_dispatch event with the configured token', async () => {
+  it('posts a repository_dispatch event to the default repo when GITHUB_DISPATCH_REPO is not set', async () => {
     process.env.GITHUB_DISPATCH_TOKEN = 'test-token';
+    delete process.env.GITHUB_DISPATCH_REPO;
     const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 204 });
 
     const result = await triggerSiteRebuild();
@@ -32,6 +35,20 @@ describe('triggerSiteRebuild', () => {
         }),
         body: JSON.stringify({ event_type: 'cms-post-published' }),
       })
+    );
+  });
+
+  it('posts to the repo from GITHUB_DISPATCH_REPO when it is set', async () => {
+    process.env.GITHUB_DISPATCH_TOKEN = 'test-token';
+    process.env.GITHUB_DISPATCH_REPO = 'AmandaGiraldi/amandagiraldi-site';
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 204 });
+
+    const result = await triggerSiteRebuild();
+
+    expect(result).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://api.github.com/repos/AmandaGiraldi/amandagiraldi-site/dispatches',
+      expect.objectContaining({ method: 'POST' })
     );
   });
 

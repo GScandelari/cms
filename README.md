@@ -66,7 +66,8 @@ cp .env.example .env
 | `FIREBASE_SERVICE_ACCOUNT`  | Service account JSON as a single-line string (optional)        |
 | `CMS_API_KEY`               | Shared secret for write requests via `x-api-key` (see Authentication) |
 | `ADMIN_EMAILS`              | Comma-separated allow list of emails permitted to write via a Firebase Auth bearer token (see Authentication). Not required if you only ever use `CMS_API_KEY`. |
-| `GITHUB_DISPATCH_TOKEN`     | Optional. Fine-grained GitHub PAT (Contents: read/write on `GScandelari/website-gscandelari`) used to trigger a site rebuild when a post is published (see Rebuild trigger). If unset, publishing just skips the trigger — it's not required for the CMS itself to work. |
+| `GITHUB_DISPATCH_TOKEN`     | Optional. Fine-grained GitHub PAT (Contents: read/write on the target repo) used to trigger a site rebuild when a post is published (see Rebuild trigger). If unset, publishing just skips the trigger — it's not required for the CMS itself to work. |
+| `GITHUB_DISPATCH_REPO`      | Optional. `"owner/repo"` to send the rebuild `repository_dispatch` event to. Defaults to `GScandelari/website-gscandelari` if unset — only set this when reusing the CMS for a different site (see Rebuild trigger). |
 | `ADMIN_PORTAL_ORIGINS`      | Comma-separated list of origins (e.g. `https://gscandelari-cms-admin.web.app`) allowed to call this API from a browser (CORS). Doesn't affect curl/server-to-server calls — CORS only applies to browsers. |
 
 If `FIREBASE_SERVICE_ACCOUNT` is not set, the SDK uses Application Default Credentials.
@@ -133,10 +134,14 @@ Nothing else needs to call this — it's fully automatic once `publishAt` is set
 
 When a `POST`/`PUT` leaves a post with `published: true`, the CMS fires a
 [`repository_dispatch`](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#repository_dispatch)
-event (`cms-post-published`) against `GScandelari/website-gscandelari`, which the site's
-GitHub Actions workflow listens for to rebuild and redeploy. Best-effort: if
-`GITHUB_DISPATCH_TOKEN` is missing or the GitHub API call fails, the error is logged but the
-post request still succeeds — publishing a post never fails because of the rebuild trigger.
+event (`cms-post-published`) against the repo in `GITHUB_DISPATCH_REPO` (defaults to
+`GScandelari/website-gscandelari`), which that site's GitHub Actions workflow listens for to
+rebuild and redeploy. Best-effort: if `GITHUB_DISPATCH_TOKEN` is missing or the GitHub API call
+fails, the error is logged but the post request still succeeds — publishing a post never fails
+because of the rebuild trigger.
+
+Reusing this CMS for another site is just a matter of pointing `GITHUB_DISPATCH_REPO` (and the
+GitHub PAT in `GITHUB_DISPATCH_TOKEN`) at that site's repo — no code change needed here.
 
 ### Example — Create a post
 
