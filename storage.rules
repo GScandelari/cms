@@ -1,0 +1,13 @@
+rules_version = '2';
+
+// Nothing talks to Storage directly from a client SDK in this project —
+// uploads go through the Cloud Function (Admin SDK, bypasses these rules
+// entirely) and public image URLs are served as public GCS objects, not via
+// Firebase's rules-gated download API. Deny everything here on purpose.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

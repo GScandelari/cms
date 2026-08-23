@@ -31,9 +31,11 @@ src/
     validate.js                  — validatePost / validatePostUpdate: field-level request validation
   routes/
     posts.js                     — GET/POST/PUT/DELETE /posts, wires auth + validation + the rebuild trigger
+    uploads.js                   — POST /uploads, image files for use in post content
   services/
     postsService.js              — Firestore reads/writes for posts, and publishDuePosts() for scheduled publishing
     githubDispatch.js            — triggerSiteRebuild(): fires the repository_dispatch event on publish
+    uploadService.js             — uploadImage(): saves a file to Firebase Storage and returns its public URL
 
 tests/                           — Jest + Supertest, one file per module above
 ```
@@ -69,6 +71,7 @@ cp .env.example .env
 | `GITHUB_DISPATCH_TOKEN`     | Optional. Fine-grained GitHub PAT (Contents: read/write on the target repo) used to trigger a site rebuild when a post is published (see Rebuild trigger). If unset, publishing just skips the trigger — it's not required for the CMS itself to work. |
 | `GITHUB_DISPATCH_REPO`      | Optional. `"owner/repo"` to send the rebuild `repository_dispatch` event to. Defaults to `GScandelari/website-gscandelari` if unset — only set this when reusing the CMS for a different site (see Rebuild trigger). |
 | `ADMIN_PORTAL_ORIGINS`      | Comma-separated list of origins (e.g. `https://gscandelari-cms-admin.web.app`) allowed to call this API from a browser (CORS). Doesn't affect curl/server-to-server calls — CORS only applies to browsers. |
+| `FIREBASE_STORAGE_BUCKET`   | Optional. Firebase Storage bucket for image uploads (see Image uploads). Defaults to `gscandelari-cms.firebasestorage.app` if unset. |
 
 If `FIREBASE_SERVICE_ACCOUNT` is not set, the SDK uses Application Default Credentials.
 
@@ -121,6 +124,31 @@ Base URL: `http://localhost:3000`
   "lang":        "'pt' | 'en' (default: 'pt')",
   "publishAt":   "ISO 8601 date string, or null (default: null)"
 }
+```
+
+## Image uploads
+
+`POST /uploads` accepts a single image as `multipart/form-data` under the field name `image`
+(JPEG, PNG, GIF, or WEBP — up to 5MB) and requires the same auth as writing posts (`x-api-key`
+or an allow-listed Firebase ID token). The image is saved to Firebase Storage under `uploads/`,
+made publicly readable, and the response is its public URL:
+
+```json
+{ "url": "https://storage.googleapis.com/gscandelari-cms.firebasestorage.app/uploads/1755999999999-a1b2c3d4e5f6.jpg" }
+```
+
+Storage Security Rules (`storage.rules`) deny all client-side reads/writes — uploads only ever
+happen through this endpoint via the Admin SDK (which isn't subject to those rules), and public
+image URLs are served as plain public GCS objects, not through Firebase's rules-gated download
+API. Firebase Storage must be enabled once per project via the
+[Firebase Console](https://console.firebase.google.com/project/_/storage) ("Get Started") before
+`firebase deploy --only storage` (or the function itself) will work — this one-time step can't
+be done from the CLI or API.
+
+```bash
+curl -X POST http://localhost:3000/uploads \
+  -H "x-api-key: $CMS_API_KEY" \
+  -F "image=@photo.jpg"
 ```
 
 ## Scheduled publishing
