@@ -17,6 +17,32 @@ A REST API for managing posts on a personal website, backed by Firebase Firestor
 
 Both wrap the same Express app in `src/app.js`.
 
+## Project structure
+
+```
+server.js                        — local dev entry point (npm start)
+index.js                         — Cloud Functions entry point (exports `api` and `publishScheduledPosts`)
+
+src/
+  app.js                         — Express app: CORS, JSON parsing, mounts /posts and /health
+  firebase.js                    — Firestore client (modular Admin SDK — see note below)
+  middlewares/
+    auth.js                      — requireAuth: accepts x-api-key OR a Firebase ID token allow-listed in ADMIN_EMAILS
+    validate.js                  — validatePost / validatePostUpdate: field-level request validation
+  routes/
+    posts.js                     — GET/POST/PUT/DELETE /posts, wires auth + validation + the rebuild trigger
+  services/
+    postsService.js              — Firestore reads/writes for posts, and publishDuePosts() for scheduled publishing
+    githubDispatch.js            — triggerSiteRebuild(): fires the repository_dispatch event on publish
+
+tests/                           — Jest + Supertest, one file per module above
+```
+
+`src/firebase.js` uses the *modular* Admin SDK (`getApps`/`initializeApp` from `firebase-admin/app`,
+`getFirestore` from `firebase-admin/firestore`) rather than the namespaced `admin.firestore()`
+style — the namespaced form broke in production (`Cannot read properties of undefined`) despite
+working fine locally, so the modular API is the one to keep using here.
+
 ## Getting Started
 
 ### 1. Clone & Install
