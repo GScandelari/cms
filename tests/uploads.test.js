@@ -3,6 +3,8 @@ jest.mock('../src/services/uploadService', () => {
   return {
     ...actual,
     uploadImage: jest.fn(),
+    listImages: jest.fn(),
+    deleteImage: jest.fn(),
   };
 });
 
@@ -16,7 +18,7 @@ process.env.CMS_API_KEY = TEST_API_KEY;
 
 const request = require('supertest');
 const app = require('../src/app');
-const { uploadImage } = require('../src/services/uploadService');
+const { uploadImage, listImages, deleteImage } = require('../src/services/uploadService');
 
 afterEach(() => jest.clearAllMocks());
 
@@ -67,6 +69,57 @@ describe('POST /uploads', () => {
       .post('/uploads')
       .set('x-api-key', TEST_API_KEY)
       .attach('image', tinyPng, 'test.png');
+    expect(res.status).toBe(500);
+  });
+});
+
+describe('GET /uploads', () => {
+  it('rejects requests without an x-api-key header', async () => {
+    const res = await request(app).get('/uploads');
+    expect(res.status).toBe(401);
+    expect(listImages).not.toHaveBeenCalled();
+  });
+
+  it('returns the list of uploaded images', async () => {
+    const images = [{ name: 'a.png', url: 'https://storage.googleapis.com/bucket/uploads/a.png', size: 123 }];
+    listImages.mockResolvedValue(images);
+
+    const res = await request(app).get('/uploads').set('x-api-key', TEST_API_KEY);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(images);
+  });
+
+  it('returns 500 when the service throws', async () => {
+    listImages.mockRejectedValue(new Error('bucket unreachable'));
+    const res = await request(app).get('/uploads').set('x-api-key', TEST_API_KEY);
+    expect(res.status).toBe(500);
+  });
+});
+
+describe('DELETE /uploads/:name', () => {
+  it('rejects requests without an x-api-key header', async () => {
+    const res = await request(app).delete('/uploads/a.png');
+    expect(res.status).toBe(401);
+    expect(deleteImage).not.toHaveBeenCalled();
+  });
+
+  it('deletes an image and returns 204', async () => {
+    deleteImage.mockResolvedValue(true);
+    const res = await request(app).delete('/uploads/a.png').set('x-api-key', TEST_API_KEY);
+    expect(res.status).toBe(204);
+    expect(deleteImage).toHaveBeenCalledWith('a.png');
+  });
+
+  it('returns 404 when the image does not exist', async () => {
+    deleteImage.mockResolvedValue(false);
+    const res = await request(app).delete('/uploads/missing.png').set('x-api-key', TEST_API_KEY);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 500 when the service throws', async () => {
+    deleteImage.mockRejectedValue(new Error('bucket unreachable'));
+    const res = await request(app).delete('/uploads/a.png').set('x-api-key', TEST_API_KEY);
     expect(res.status).toBe(500);
   });
 });

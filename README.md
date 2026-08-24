@@ -31,11 +31,11 @@ src/
     validate.js                  — validatePost / validatePostUpdate: field-level request validation
   routes/
     posts.js                     — GET/POST/PUT/DELETE /posts, wires auth + validation + the rebuild trigger
-    uploads.js                   — POST /uploads, image files for use in post content
+    uploads.js                   — GET/POST /uploads, DELETE /uploads/:name — image files for use in post content
   services/
     postsService.js              — Firestore reads/writes for posts, and publishDuePosts() for scheduled publishing
     githubDispatch.js            — triggerSiteRebuild(): fires the repository_dispatch event on publish
-    uploadService.js             — uploadImage(): saves a file to Firebase Storage and returns its public URL
+    uploadService.js             — uploadImage()/listImages()/deleteImage(): Firebase Storage reads/writes for uploads/
 
 tests/                           — Jest + Supertest, one file per module above
 ```
@@ -128,14 +128,34 @@ Base URL: `http://localhost:3000`
 
 ## Image uploads
 
+All three endpoints require the same auth as writing posts (`x-api-key` or an allow-listed
+Firebase ID token) — `GET /uploads` is an admin-only management view over the admin's own
+uploads, not public post content, so it's gated too (unlike `GET /posts`).
+
+| Method   | Endpoint          | Description                                    |
+|----------|-------------------|-------------------------------------------------|
+| `GET`    | `/uploads`        | List every uploaded image                       |
+| `POST`   | `/uploads`        | Upload a new image                              |
+| `DELETE` | `/uploads/:name`  | Delete an image (`:name` is just the filename, e.g. `169...-a1b2.jpg`, not a full path) |
+
 `POST /uploads` accepts a single image as `multipart/form-data` under the field name `image`
-(JPEG, PNG, GIF, or WEBP — up to 5MB) and requires the same auth as writing posts (`x-api-key`
-or an allow-listed Firebase ID token). The image is saved to Firebase Storage under `uploads/`,
+(JPEG, PNG, GIF, or WEBP — up to 5MB). The image is saved to Firebase Storage under `uploads/`,
 made publicly readable, and the response is its public URL:
 
 ```json
 { "url": "https://storage.googleapis.com/gscandelari-cms.firebasestorage.app/uploads/1755999999999-a1b2c3d4e5f6.jpg" }
 ```
+
+`GET /uploads` returns every image in that same shape plus metadata, newest first:
+
+```json
+[{ "name": "1755999999999-a1b2c3d4e5f6.jpg", "url": "...", "size": 48213, "contentType": "image/jpeg", "createdAt": "2026-08-23T19:37:38.374Z" }]
+```
+
+Whether an image is currently referenced by any post isn't tracked server-side — the admin
+portal figures that out by fetching `GET /posts` (already public, already includes full
+`content`) and checking each post's content for the image's URL. `DELETE /uploads/:name` doesn't
+know or care either way; it just deletes the Storage object.
 
 Storage Security Rules (`storage.rules`) deny all client-side reads/writes — uploads only ever
 happen through this endpoint via the Admin SDK (which isn't subject to those rules), and public
@@ -149,6 +169,11 @@ be done from the CLI or API.
 curl -X POST http://localhost:3000/uploads \
   -H "x-api-key: $CMS_API_KEY" \
   -F "image=@photo.jpg"
+
+curl http://localhost:3000/uploads -H "x-api-key: $CMS_API_KEY"
+
+curl -X DELETE http://localhost:3000/uploads/1755999999999-a1b2c3d4e5f6.jpg \
+  -H "x-api-key: $CMS_API_KEY"
 ```
 
 ## Scheduled publishing
