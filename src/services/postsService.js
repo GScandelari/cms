@@ -27,6 +27,7 @@ async function createPost(data) {
     tags: data.tags !== undefined ? data.tags : [],
     lang: data.lang !== undefined ? data.lang : 'pt',
     publishAt: data.publishAt !== undefined ? data.publishAt : null,
+    translations: data.translations !== undefined ? data.translations : {},
     createdAt: data.createdAt !== undefined ? data.createdAt : now,
     updatedAt: now,
   };
@@ -49,6 +50,7 @@ async function updatePost(id, data) {
   if (data.tags !== undefined) updates.tags = data.tags;
   if (data.lang !== undefined) updates.lang = data.lang;
   if (data.publishAt !== undefined) updates.publishAt = data.publishAt;
+  if (data.translations !== undefined) updates.translations = data.translations;
 
   await ref.update(updates);
   return { id, ...doc.data(), ...updates };

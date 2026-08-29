@@ -3,6 +3,7 @@ const cors = require('cors');
 
 const postsRouter = require('./routes/posts');
 const uploadsRouter = require('./routes/uploads');
+const translateRouter = require('./routes/translate');
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use('/posts', postsRouter);
 app.use('/uploads', uploadsRouter);
+app.use('/translate', translateRouter);
 
 app.use((err, req, res, next) => {
   if (err && err.message === 'Not allowed by CORS') {

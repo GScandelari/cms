@@ -1,7 +1,7 @@
 const mockGetDb = jest.fn();
 jest.mock('../src/firebase', () => ({ getDb: mockGetDb }));
 
-const { publishDuePosts } = require('../src/services/postsService');
+const { publishDuePosts, createPost, updatePost } = require('../src/services/postsService');
 
 function buildFakeDb({ docs = [] } = {}) {
   const updateCalls = [];
@@ -59,5 +59,71 @@ describe('publishDuePosts', () => {
     expect(batch.commit).toHaveBeenCalledTimes(1);
     expect(result).toHaveLength(2);
     expect(result.every((p) => p.published === true)).toBe(true);
+  });
+});
+
+function buildFakeCrudDb({ existingData } = {}) {
+  const addedDocs = [];
+  const updateCalls = [];
+  const docRef = {
+    get: jest.fn().mockResolvedValue({ exists: existingData !== undefined, data: () => existingData }),
+    update: jest.fn((data) => {
+      updateCalls.push(data);
+      return Promise.resolve();
+    }),
+  };
+  const db = {
+    collection: jest.fn().mockReturnValue({
+      add: jest.fn((post) => {
+        addedDocs.push(post);
+        return Promise.resolve({ id: 'new-id' });
+      }),
+      doc: jest.fn().mockReturnValue(docRef),
+    }),
+  };
+  return { db, addedDocs, updateCalls, docRef };
+}
+
+describe('createPost', () => {
+  it('defaults translations to an empty object when not provided', async () => {
+    const { db, addedDocs } = buildFakeCrudDb();
+    mockGetDb.mockReturnValue(db);
+
+    await createPost({ title: 'T', content: 'C', slug: 's' });
+
+    expect(addedDocs[0].translations).toEqual({});
+  });
+
+  it('stores a provided translations object as-is', async () => {
+    const { db, addedDocs } = buildFakeCrudDb();
+    mockGetDb.mockReturnValue(db);
+    const translations = { en: { title: 'T', description: '', content: 'C' } };
+
+    const result = await createPost({ title: 'T', content: 'C', slug: 's', translations });
+
+    expect(addedDocs[0].translations).toEqual(translations);
+    expect(result.translations).toEqual(translations);
+  });
+});
+
+describe('updatePost', () => {
+  it('does not touch translations when not included in the update', async () => {
+    const { db, updateCalls } = buildFakeCrudDb({ existingData: { title: 'Old', translations: { en: { title: 'Old EN' } } } });
+    mockGetDb.mockReturnValue(db);
+
+    await updatePost('id1', { title: 'New' });
+
+    expect(updateCalls[0]).not.toHaveProperty('translations');
+  });
+
+  it('overwrites translations when included in the update', async () => {
+    const { db, updateCalls } = buildFakeCrudDb({ existingData: { title: 'Old', translations: {} } });
+    mockGetDb.mockReturnValue(db);
+    const translations = { en: { title: 'New EN', description: '', content: 'New content' } };
+
+    const result = await updatePost('id1', { translations });
+
+    expect(updateCalls[0].translations).toEqual(translations);
+    expect(result.translations).toEqual(translations);
   });
 });

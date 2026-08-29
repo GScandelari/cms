@@ -32,10 +32,12 @@ src/
   routes/
     posts.js                     — GET/POST/PUT/DELETE /posts, wires auth + validation + the rebuild trigger
     uploads.js                   — GET/POST /uploads, DELETE /uploads/:name — image files for use in post content
+    translate.js                 — POST /translate, drafts an English translation of a post's fields
   services/
     postsService.js              — Firestore reads/writes for posts, and publishDuePosts() for scheduled publishing
     githubDispatch.js            — triggerSiteRebuild(): fires the repository_dispatch event on publish
     uploadService.js             — uploadImage()/listImages()/deleteImage(): Firebase Storage reads/writes for uploads/
+    translateService.js          — translatePost(): calls the Anthropic API to translate title/description/content
 
 tests/                           — Jest + Supertest, one file per module above
 ```
@@ -72,6 +74,7 @@ cp .env.example .env
 | `GITHUB_DISPATCH_REPO`      | Optional. `"owner/repo"` to send the rebuild `repository_dispatch` event to. Defaults to `GScandelari/website-gscandelari` if unset — only set this when reusing the CMS for a different site (see Rebuild trigger). |
 | `ADMIN_PORTAL_ORIGINS`      | Comma-separated list of origins (e.g. `https://gscandelari-cms-admin.web.app`) allowed to call this API from a browser (CORS). Doesn't affect curl/server-to-server calls — CORS only applies to browsers. |
 | `FIREBASE_STORAGE_BUCKET`   | Optional. Firebase Storage bucket for image uploads (see Image uploads). Defaults to `gscandelari-cms.firebasestorage.app` if unset. |
+| `ANTHROPIC_API_KEY`         | Required for `POST /translate` (see Translation). An Anthropic API key from [console.anthropic.com](https://console.anthropic.com). |
 
 If `FIREBASE_SERVICE_ACCOUNT` is not set, the SDK uses Application Default Credentials.
 
@@ -122,9 +125,13 @@ Base URL: `http://localhost:3000`
   "description": "string (default: '')",
   "tags":        "string[] (default: [])",
   "lang":        "'pt' | 'en' (default: 'pt')",
-  "publishAt":   "ISO 8601 date string, or null (default: null)"
+  "publishAt":   "ISO 8601 date string, or null (default: null)",
+  "translations": "{ [locale]: { title, description, content } } (default: {})"
 }
 ```
+
+`translations` holds a full translated copy of a post per locale code (currently just `en` in
+practice, but the shape isn't limited to that) — see Translation below for how it's populated.
 
 ## Image uploads
 
@@ -176,6 +183,30 @@ curl -X DELETE http://localhost:3000/uploads/1755999999999-a1b2c3d4e5f6.jpg \
   -H "x-api-key: $CMS_API_KEY"
 ```
 
+## Translation
+
+`POST /translate` requires the same auth as writing posts. It takes a post's PT fields and
+returns an English draft — it never writes anything itself; the caller is expected to review or
+edit the result and save it into that post's own `translations.en` via the normal
+`POST`/`PUT /posts` flow.
+
+```bash
+curl -X POST http://localhost:3000/translate \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $CMS_API_KEY" \
+  -d '{"title":"Por que criei este blog","description":"...","content":"..."}'
+```
+
+```json
+{ "title": "Why I started this blog", "description": "...", "content": "..." }
+```
+
+Translation is done by Claude (`claude-opus-5`, via `@anthropic-ai/sdk`) with a system prompt
+that preserves Markdown structure, links, images, and code blocks, and asks for a natural
+first-person voice rather than a literal translation. Every call costs real money against the
+Anthropic API, hence the auth requirement — this endpoint is never called automatically, only
+when the admin portal's "Traduzir" button is clicked.
+
 ## Scheduled publishing
 
 Setting `publishAt` on an unpublished post schedules it. A Cloud Function
@@ -217,10 +248,12 @@ function uses Application Default Credentials automatically — no
 firebase deploy --only functions --project gscandelari-cms
 ```
 
-`CMS_API_KEY` is stored in Secret Manager, not a `.env` file:
+`CMS_API_KEY` (and every other secret, including `ANTHROPIC_API_KEY`) is stored in Secret
+Manager, not a `.env` file:
 
 ```bash
 printf "your-key-here" | firebase functions:secrets:set CMS_API_KEY --project gscandelari-cms --data-file -
+printf "sk-ant-..." | firebase functions:secrets:set ANTHROPIC_API_KEY --project gscandelari-cms --data-file -
 ```
 
 (Use `printf`, not `echo` — `echo` appends a trailing newline that becomes part of the
